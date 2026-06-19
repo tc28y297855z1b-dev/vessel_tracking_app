@@ -113,12 +113,10 @@ if tracking_no:
 
 st.sidebar.markdown("---")
 
-# 4. Base Time Simulation (to control schedules dynamically)
-st.sidebar.subheader("⏰ シミュレーション基準日時")
-st.sidebar.markdown("デモ用として、現在日時を前後に変更して船舶の運行状況（到着済み・運航中など）をシミュレートできます。")
-sim_date = st.sidebar.date_input("基準日", datetime(2026, 6, 19))
-sim_time = st.sidebar.time_input("基準時刻", datetime(2026, 6, 19, 12, 0).time())
-current_sim_datetime = datetime.combine(sim_date, sim_time)
+# For production, use actual current time
+current_sim_datetime = datetime.now() # Use actual current time in production
+
+# Optional: If you still want to offer a 
 
 st.sidebar.markdown("---")
 st.sidebar.info("""
@@ -138,7 +136,7 @@ if delay_hours > 0:
     st.error(f"""
     🚨 **遅延警告 (Delay Warning)**  
     * **遅延時間**: {delay_hours} 時間遅れ  
-    * **遅延要因**: **{vessel['delay_reason']}**  
+    * **遅延要因**: **{vessel["delay_reason"]}**  
     * **注意事項**: 中国側積出港での混雑や天候の影響によりスケジュールが乱れています。これに伴い、後続の日本各港（大阪・神戸・名古屋・東京等）への**ETA（到着予定）およびETD（出発予定）もすべて同等の遅れが波及する見込み**です。今後の港湾の混雑状況によっては、さらに遅延が拡大する可能性がありますので十分にご注意ください。
     """)
 else:
@@ -156,7 +154,11 @@ with col1:
     st.metric(
         label="追跡中船舶",
         value=vessel["name"],
-        delta=f"IMO: {vessel['imo']}",
+        delta=f"IMO: {vessel["imo"]}",
+        delta_color="off"
+    )
+        value=vessel["name"],
+        delta=f"IMO: {vessel["imo"]}",
         delta_color="off"
     )
 
@@ -172,7 +174,7 @@ with col2:
     st.metric(
         label="運航ステータス",
         value=status_ja,
-        delta=f"速力: {vessel['speed_knots']} ノット",
+        delta=f"速力: {vessel["speed_knots"]} ノット",
         delta_color="normal"
     )
 
@@ -188,7 +190,7 @@ with col4:
     st.metric(
         label="次の目的地 (AIS)",
         value=vessel["destination"],
-        delta=f"データ元: {vessel['source']}",
+        delta=f"データ元: {vessel["source"]}",
         delta_color="off"
     )
 
@@ -250,10 +252,10 @@ with spec_col:
             vessel["company"],
             vessel["flag"],
             vessel["type"],
-            f"{vessel['built']} 年",
-            f"{vessel['gt']:,} トン",
-            f"{vessel['dwt']:,} トン",
-            f"{vessel['length']}m / {vessel['width']}m",
+            f"{vessel["built"]} 年",
+            f"{vessel["gt"]:,} トン",
+            f"{vessel["dwt"]:,} トン",
+            f"{vessel["length"]}m / {vessel["width"]}m",
             vessel["route_name"]
         ]
     })
@@ -272,11 +274,11 @@ with map_col:
     
     # Add Vessel Marker
     tooltip_html = f"""
-    <b>{vessel['name']}</b><br>
-    会社: {vessel['company']}<br>
+    <b>{vessel["name"]}</b><br>
+    会社: {vessel["company"]}<br>
     状態: {status_ja}<br>
-    目的地: {vessel['destination']}<br>
-    遅延: {vessel['delay_hours']}時間
+    目的地: {vessel["destination"]}<br>
+    遅延: {vessel["delay_hours"]}時間
     """
     
     folium.Marker(
@@ -313,10 +315,10 @@ with map_col:
             icon_color = "green" if is_pol else "orange"
             
             popup_text = f"""
-            <b>{port_name}</b> ({s['type']})<br>
-            計画ETD: {s['planned_etd'].strftime('%Y-%m-%d %H:%M')}<br>
-            最新見込ETD: {s['estimated_etd'].strftime('%Y-%m-%d %H:%M')}<br>
-            ステータス: {s['status']}
+            <b>{port_name}</b> ({s["type"]})<br>
+            計画ETD: {s["planned_etd"].strftime("%Y-%m-%d %H:%M")}<br>
+            最新見込ETD: {s["estimated_etd"].strftime("%Y-%m-%d %H:%M")}<br>
+            ステータス: {s["status"]}
             """
             
             folium.Marker(
@@ -373,4 +375,4 @@ with col_lnk4:
 
 # Footer
 st.markdown("---")
-st.caption(f"© 2026 日中コンテナ船追跡アプリ | シミュレーション基準日時: {current_sim_datetime.strftime('%Y-%m-%d %H:%M')} | デモ構築用")
+st.caption(f"© 2026 日中コンテナ船追跡アプリ | 最終更新: {current_sim_datetime.strftime('%Y-%m-%d %H:%M')}")

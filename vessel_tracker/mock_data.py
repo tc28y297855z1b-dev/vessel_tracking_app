@@ -97,7 +97,7 @@ def generate_schedule(vessel_imo, current_date=None):
     Includes original planned schedule vs estimated/actual schedule based on current delay.
     """
     if current_date is None:
-        current_date = datetime(2026, 6, 19, 12, 0) # Base anchor time consistent with environment
+        current_date = datetime.now() # Use actual current time in production
     
     vessel = VESSELS_DB.get(vessel_imo)
     if not vessel:
@@ -187,7 +187,7 @@ def interpolate_vessel_position(vessel_imo, current_date=None):
     and delay in the schedule. Keeps the map coordinates dynamically moving.
     """
     if current_date is None:
-        current_date = datetime(2026, 6, 19, 12, 0)
+        current_date = datetime.now() # Use actual current time in production
         
     vessel = VESSELS_DB.get(vessel_imo)
     if not vessel:
