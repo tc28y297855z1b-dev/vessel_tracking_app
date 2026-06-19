@@ -157,10 +157,6 @@ with col1:
         delta=f"IMO: {vessel["imo"]}",
         delta_color="off"
     )
-        value=vessel["name"],
-        delta=f"IMO: {vessel["imo"]}",
-        delta_color="off"
-    )
 
 with col2:
     status_label = vessel["status"]
