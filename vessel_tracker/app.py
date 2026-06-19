@@ -11,8 +11,8 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime
 
-from mock_data import VESSELS_DB
-from tracker import get_integrated_vessel_tracker
+from mock_data import VESSELS_DB, load_vessels_db
+from tracker import get_integrated_vessel_tracker, add_vessel_to_db, scrape_vessel_info, discover_vessels_from_vesselfinder
 
 # Page configuration
 st.set_page_config(
@@ -56,6 +56,47 @@ st.markdown("""
 
 # Sidebar settings
 st.sidebar.header("🔍 追跡・検索パネル")
+
+# 0. Auto-Discover Vessels Section
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔄 自動船舶発見")
+st.sidebar.caption("VesselFinderから日中航路の船舶を自動検索しDBに追加します")
+if st.sidebar.button("🚢 日中航路の船舶を自動発見", type="secondary", use_container_width=True):
+    with st.sidebar.status("🔍 VesselFinderを検索中...（複数キーワード・港でスキャン）"):
+        newly_added = discover_vessels_from_vesselfinder()
+        if newly_added:
+            st.sidebar.success(f"✅ {len(newly_added)} 隻の新しい船舶を発見・追加しました！")
+            st.rerun()
+        else:
+            st.sidebar.info("新しい船舶は見つかりませんでした（既存の船舶のみ、または取得不可）")
+
+# 1. Add New Vessel Manually Section
+st.sidebar.markdown("---")
+st.sidebar.subheader("🆕 手動でIMO追加")
+new_imo = st.sidebar.text_input(
+    "IMO番号を入力",
+    placeholder="例: 9785809",
+    value="",
+    key="new_imo_input"
+)
+if st.sidebar.button("船舶をDBに追加", type="primary", use_container_width=True):
+    if new_imo.strip():
+        with st.sidebar.status("船舶情報を取得中..."):
+            # Check if already exists
+            if new_imo.strip() in VESSELS_DB:
+                st.sidebar.warning(f"IMO {new_imo.strip()} は既にDBに登録されています。")
+            else:
+                result = add_vessel_to_db(new_imo.strip())
+                if result:
+                    st.sidebar.success(f"✅ {result['name']} (IMO: {new_imo.strip()}) をDBに追加しました！")
+                    st.rerun()
+                else:
+                    st.sidebar.error("船舶情報の取得に失敗しました。IMO番号が正しいか確認してください。")
+    else:
+        st.sidebar.warning("IMO番号を入力してください。")
+
+# Reload VESSELS_DB from file to reflect any additions
+VESSELS_DB = load_vessels_db()
 
 # 1. Company Selection
 companies = sorted(list(set(v["company"] for v in VESSELS_DB.values())))
@@ -132,11 +173,12 @@ schedule = tracker_data["schedule"]
 
 # ==================== DELAY ALERT BOARD (HIGH PRIORITY) ====================
 delay_hours = vessel["delay_hours"]
+vessel_delay_reason = vessel["delay_reason"]
 if delay_hours > 0:
     st.error(f"""
     🚨 **遅延警告 (Delay Warning)**  
     * **遅延時間**: {delay_hours} 時間遅れ  
-    * **遅延要因**: **{vessel["delay_reason"]}**  
+    * **遅延要因**: **{vessel_delay_reason}**  
     * **注意事項**: 中国側積出港での混雑や天候の影響によりスケジュールが乱れています。これに伴い、後続の日本各港（大阪・神戸・名古屋・東京等）への**ETA（到着予定）およびETD（出発予定）もすべて同等の遅れが波及する見込み**です。今後の港湾の混雑状況によっては、さらに遅延が拡大する可能性がありますので十分にご注意ください。
     """)
 else:
@@ -150,11 +192,15 @@ else:
 # Layout columns for metadata and metrics (More compact)
 col1, col2, col3, col4 = st.columns(4)
 
+vessel_imo = vessel["imo"]
+vessel_speed = vessel["speed_knots"]
+vessel_source = vessel["source"]
+
 with col1:
     st.metric(
         label="追跡中船舶",
         value=vessel["name"],
-        delta=f"IMO: {vessel["imo"]}",
+        delta=f"IMO: {vessel_imo}",
         delta_color="off"
     )
 
@@ -170,7 +216,7 @@ with col2:
     st.metric(
         label="運航ステータス",
         value=status_ja,
-        delta=f"速力: {vessel["speed_knots"]} ノット",
+        delta=f"速力: {vessel_speed} ノット",
         delta_color="normal"
     )
 
@@ -186,7 +232,7 @@ with col4:
     st.metric(
         label="次の目的地 (AIS)",
         value=vessel["destination"],
-        delta=f"データ元: {vessel["source"]}",
+        delta=f"データ元: {vessel_source}",
         delta_color="off"
     )
 
@@ -233,6 +279,11 @@ map_col, spec_col = st.columns([2, 1])
 
 with spec_col:
     st.subheader("📋 船舶基本情報 Specs")
+    vessel_built = vessel["built"]
+    vessel_gt = vessel["gt"]
+    vessel_dwt = vessel["dwt"]
+    vessel_length = vessel["length"]
+    vessel_width = vessel["width"]
     specs_df = pd.DataFrame({
         "項目": [
             "船舶会社 (Operator)", 
@@ -248,10 +299,10 @@ with spec_col:
             vessel["company"],
             vessel["flag"],
             vessel["type"],
-            f"{vessel["built"]} 年",
-            f"{vessel["gt"]:,} トン",
-            f"{vessel["dwt"]:,} トン",
-            f"{vessel["length"]}m / {vessel["width"]}m",
+            f"{vessel_built} 年",
+            f"{vessel_gt:,} トン",
+            f"{vessel_dwt:,} トン",
+            f"{vessel_length}m / {vessel_width}m",
             vessel["route_name"]
         ]
     })
@@ -268,13 +319,17 @@ with map_col:
     # Initialize Folium Map centered on the ship or mid point
     m = folium.Map(location=[vessel["lat"], vessel["lon"]], zoom_start=5, control_scale=True)
     
+    vessel_name = vessel["name"]
+    vessel_company = vessel["company"]
+    vessel_dest = vessel["destination"]
+    vessel_delay = vessel["delay_hours"]
     # Add Vessel Marker
     tooltip_html = f"""
-    <b>{vessel["name"]}</b><br>
-    会社: {vessel["company"]}<br>
+    <b>{vessel_name}</b><br>
+    会社: {vessel_company}<br>
     状態: {status_ja}<br>
-    目的地: {vessel["destination"]}<br>
-    遅延: {vessel["delay_hours"]}時間
+    目的地: {vessel_dest}<br>
+    遅延: {vessel_delay}時間
     """
     
     folium.Marker(
