@@ -14,10 +14,17 @@ from datetime import datetime, timedelta
 DB_FILE = os.path.join(os.path.dirname(__file__), "vessels_db.json")
 
 def load_vessels_db():
-    """Load VESSELS_DB from JSON file. Returns empty dict if file doesn't exist."""
+    """Load VESSELS_DB from JSON file. Returns empty dict if file doesn't exist or is invalid."""
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if not content:
+                    return {}
+                return json.loads(content)
+        except (json.JSONDecodeError, ValueError, IOError) as e:
+            print(f"Warning: Failed to load vessels_db.json: {e}. Using empty database.")
+            return {}
     return {}
 
 def save_vessels_db(db):
@@ -25,8 +32,99 @@ def save_vessels_db(db):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2, ensure_ascii=False)
 
-# Load the database from JSON file
+# Default vessel data as fallback when JSON file is empty or fails to load
+DEFAULT_VESSELS = {
+    "9785809": {
+        "imo": "9785809",
+        "name": "COSCO SHIPPING SAGITTARIUS",
+        "company": "COSCO",
+        "flag": "Hong Kong",
+        "type": "Container Ship",
+        "built": 2018,
+        "gt": 141823,
+        "dwt": 134850,
+        "length": 366,
+        "width": 48,
+        "route_name": "China-Japan Express (CJX)",
+        "base_lat": 31.2,
+        "base_lon": 122.5,
+        "speed_knots": 16.5,
+        "status": "Underway using Engine",
+        "destination": "OSAKA",
+        "delay_hours": 36,
+        "delay_reason": "Shanghai Port Congestion & Typhoon Side-effects"
+    },
+    "9847865": {
+        "imo": "9847865",
+        "name": "ONE APUS",
+        "company": "ONE",
+        "flag": "Japan",
+        "type": "Container Ship",
+        "built": 2019,
+        "gt": 146694,
+        "dwt": 139500,
+        "length": 364,
+        "width": 51,
+        "route_name": "East Asia to Japan Loop (EA1)",
+        "base_lat": 33.5,
+        "base_lon": 136.2,
+        "speed_knots": 18.2,
+        "status": "Underway using Engine",
+        "destination": "TOKYO",
+        "delay_hours": 8,
+        "delay_reason": "Dense fog in East China Sea"
+    },
+    "9470741": {
+        "imo": "9470741",
+        "name": "OOCL NAGOYA",
+        "company": "OOCL",
+        "flag": "Hong Kong",
+        "type": "Container Ship",
+        "built": 2009,
+        "gt": 40164,
+        "dwt": 50500,
+        "length": 260,
+        "width": 32,
+        "route_name": "Kanto-Kansai Service (KTX3)",
+        "base_lat": 29.8,
+        "base_lon": 123.1,
+        "speed_knots": 15.0,
+        "status": "At Anchor",
+        "destination": "NAGOYA",
+        "delay_hours": 48,
+        "delay_reason": "Ningbo-Zhoushan terminal custom system outage & berth waiting"
+    },
+    "9243760": {
+        "imo": "9243760",
+        "name": "SITC SHANGHAI",
+        "company": "SITC",
+        "flag": "Panama",
+        "type": "Container Ship",
+        "built": 2001,
+        "gt": 9531,
+        "dwt": 12000,
+        "length": 140,
+        "width": 22,
+        "route_name": "SITC China-Japan Shuttle",
+        "base_lat": 34.2,
+        "base_lon": 134.9,
+        "speed_knots": 12.4,
+        "status": "Moored",
+        "destination": "OSAKA",
+        "delay_hours": 0,
+        "delay_reason": "Normal operations"
+    }
+}
+
+# Load the database from JSON file, fall back to defaults if empty
 VESSELS_DB = load_vessels_db()
+if not VESSELS_DB:
+    VESSELS_DB = dict(DEFAULT_VESSELS)
+    # Save defaults to JSON file for persistence
+    try:
+        save_vessels_db(VESSELS_DB)
+    except Exception:
+        pass
 
 def generate_schedule(vessel_imo, current_date=None):
     """
